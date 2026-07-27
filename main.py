@@ -1,8 +1,10 @@
+from pydantic import BaseModel, EmailStr
 import os
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, status
 from fastapi.responses import JSONResponse
 from supabase import create_client, Client
+from models.user_credentials import UserCredentials
 
 load_dotenv()
 
@@ -18,3 +20,24 @@ def root():
     return JSONResponse({"message": "Welcome to the Auth API with Supabase"})
     
     
+@app.post("/auth/signup", status_code=status.HTTP_201_CREATED)
+def signup(credentials: UserCredentials):
+    try:
+        response = supabase.auth.sign_up({
+            "email": credentials.email,
+            "password": credentials.password
+        })
+        return response
+    except Exception as e:
+        return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content={"message": str(e)})
+
+@app.post("/auth/login", status_code=status.HTTP_200_OK)
+def login(credentials: UserCredentials):
+    try:
+        response = supabase.auth.sign_in_with_password({
+            "email": credentials.email,
+            "password": credentials.password
+        })
+        return response
+    except Exception as e:
+        return JSONResponse(status_code=status.HTTP_401_UNAUTHORIZED, content={"message": str(e)})
