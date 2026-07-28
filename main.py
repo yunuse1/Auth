@@ -1,3 +1,5 @@
+from fastapi import Response
+from fastapi import Depends
 from fastapi import Header
 from pydantic import BaseModel, EmailStr
 import os
@@ -15,6 +17,26 @@ SUPABASE_KEY = os.getenv('SUPABASE_KEY')
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 app = FastAPI(title="Auth API with Supabase")
+
+def check_token(authorization: str = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={"error": "Access token required"}
+        )
+    token = authorization.split(" ")[1]
+    try:
+        user_response = supabase.auth.get_user(token)
+        user = user_response.user
+        if not user:
+            return JSONResponse(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                content={"error": "Invalid or expired token"}
+            )
+        return {"user": user, "token": token}
+    except Exception as e:
+        return JSONResponse(status_code=status.HTTP_401_UNAUTHORIZED, content={"error": "Invalid or expired token"})
+
 
 @app.get("/")
 def root():
@@ -50,13 +72,23 @@ def public_info():
     return JSONResponse({"message": "Welcome stranger! This info is public."})
 
 @app.get("/protected/profile")
-def protected_profile(authorization: str = Header(None)):
-    if not authorization or not authorization.startswith("Bearer "):
-        return JSONResponse(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            content={"error": "Access token required"}
-        )
+def protected_profile(auth: dict = Depends(check_token)):
     return {
-        "message": "Token received, but not verified yet!",
-        "raw_token": authorization.split(" ")[1]
-    }
+            "message": "Access granted!",
+            "user": {
+                "id": auth['user'].id,
+                "email": auth['user'].email,
+                "created_at": str(auth['user'].created_at)
+            }
+        }
+
+@app.post("/auth/logout",status_code=status.HTTP_200_OK,dependencies=[Depends(check_token)])
+def logout():
+    try:
+        supabase.auth.sign_out()
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    except Exception as e:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"error": str(e)}
+        )
