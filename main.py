@@ -1,6 +1,6 @@
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi import Response
-from fastapi import Depends
-from fastapi import Header
+from fastapi import Depends, HTTPException
 from pydantic import BaseModel, EmailStr
 import os
 from dotenv import load_dotenv
@@ -17,32 +17,38 @@ SUPABASE_KEY = os.getenv('SUPABASE_KEY')
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 app = FastAPI(title="Auth API with Supabase")
+security = HTTPBearer()
 
-def check_token(authorization: str = Header(None)):
-    if not authorization or not authorization.startswith("Bearer "):
-        return JSONResponse(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            content={"error": "Access token required"}
-        )
-    token = authorization.split(" ")[1]
+def check_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """
+    Check token using Supabase Auth
+    """
+    token = credentials.credentials
+    
     try:
         user_response = supabase.auth.get_user(token)
         user = user_response.user
+        
         if not user:
-            return JSONResponse(
+            raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                content={"error": "Invalid or expired token"}
+                detail="Invalid or expired token"
             )
+            
         return {"user": user, "token": token}
-    except Exception as e:
-        return JSONResponse(status_code=status.HTTP_401_UNAUTHORIZED, content={"error": "Invalid or expired token"})
-
+        
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token"
+        )
 
 @app.get("/")
 def root():
     return JSONResponse({"message": "Welcome to the Auth API with Supabase"})
     
     
+
 @app.post("/auth/signup", status_code=status.HTTP_201_CREATED)
 def signup(credentials: UserCredentials):
     try:
