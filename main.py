@@ -1,3 +1,4 @@
+from fastapi import Header
 from pydantic import BaseModel, EmailStr
 import os
 from dotenv import load_dotenv
@@ -41,3 +42,21 @@ def login(credentials: UserCredentials):
         return response
     except Exception as e:
         return JSONResponse(status_code=status.HTTP_401_UNAUTHORIZED, content={"message": str(e)})
+
+
+
+@app.get("/public/info")
+def public_info():
+    return JSONResponse({"message": "Welcome stranger! This info is public."})
+
+@app.get("/protected/profile")
+def protected_profile(authorization: str = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={"error": "Access token required"}
+        )
+    return {
+        "message": "Token received, but not verified yet!",
+        "raw_token": authorization.split(" ")[1]
+    }
