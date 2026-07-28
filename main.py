@@ -92,3 +92,15 @@ def logout():
             status_code=status.HTTP_400_BAD_REQUEST,
             content={"error": str(e)}
         )
+
+
+@app.get("/protected/dashboard")
+def protected_dashboard(auth_data: dict = Depends(check_token)):
+    try:
+        user = auth_data["user"]
+        return {
+            "message": f"Welcome to your private dashboard, {user.email}!",
+            "stats": {"status": "active", "tier": "free"}
+        }
+    except Exception as e:
+        return JSONResponse(status_code=status.HTTP_401_UNAUTHORIZED, content={"error": "Invalid or expired token"})
